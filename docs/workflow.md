@@ -9,16 +9,22 @@
 
 ## Backend Connection
 
-Supabase CLI is installed on this Mac, but it is not logged in yet. Run:
+Supabase is connected.
+
+- Organization: `CLAYTON`
+- Project: `clayton-app`
+- Project ref: `osespyexerpyooqleoxz`
+- API URL: `https://osespyexerpyooqleoxz.supabase.co`
+
+The first remote migration has been pushed. It creates project, track, and asset tables plus private Storage buckets for audio, artwork, and general assets.
+
+Use these commands for future schema updates:
 
 ```sh
-supabase login
-supabase projects list
-supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
 ```
 
-Then copy `.env.example` to `.env` and add your project URL and anon key.
+Local Expo environment values live in `.env.local`, which is intentionally ignored by Git.
 
 ## Repo Connection
 

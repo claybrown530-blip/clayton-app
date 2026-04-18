@@ -59,3 +59,59 @@ create policy "Owner can manage artist assets"
   for all
   using (auth.role() = 'authenticated')
   with check (auth.role() = 'authenticated');
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  (
+    'artist-audio',
+    'artist-audio',
+    false,
+    209715200,
+    array[
+      'audio/aac',
+      'audio/mp4',
+      'audio/mpeg',
+      'audio/wav',
+      'audio/x-m4a'
+    ]
+  ),
+  (
+    'artist-artwork',
+    'artist-artwork',
+    false,
+    52428800,
+    array[
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ]
+  ),
+  (
+    'artist-assets',
+    'artist-assets',
+    false,
+    104857600,
+    null
+  )
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+do $$
+begin
+  create policy "Owner can manage CLAYTON storage"
+    on storage.objects
+    for all
+    using (
+      auth.role() = 'authenticated'
+      and bucket_id in ('artist-audio', 'artist-artwork', 'artist-assets')
+    )
+    with check (
+      auth.role() = 'authenticated'
+      and bucket_id in ('artist-audio', 'artist-artwork', 'artist-assets')
+    );
+exception
+  when duplicate_object then null;
+end $$;
