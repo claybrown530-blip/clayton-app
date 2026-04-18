@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AudioSource, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,118 +11,280 @@ import {
   View,
 } from 'react-native';
 
+type CoverKind = 'sketch' | 'window' | 'cassette' | 'blank' | 'tree' | 'cloud';
+
 type Track = {
   id: string;
   title: string;
+  added: string;
   kind: string;
-  version: string;
-  duration: string;
-  bpm: string;
-  key: string;
-  note: string;
   source: AudioSource;
 };
 
 type Project = {
   id: string;
   title: string;
-  format: string;
-  phase: string;
-  updated: string;
-  palette: {
-    paper: string;
-    ink: string;
-    accent: string;
-  };
-  logline: string;
+  owner: string;
+  locked: boolean;
+  cover: CoverKind;
+  accent: string;
   tracks: Track[];
 };
 
-const projects: Project[] = [
+type Sheet = 'none' | 'add' | 'cover' | 'import';
+type Screen = 'library' | 'project';
+
+const baseProjects: Project[] = [
   {
-    id: 'stratford-ave',
-    title: 'Stratford Ave',
-    format: 'Demo tape',
-    phase: 'writing',
-    updated: 'Apr 18',
-    palette: {
-      paper: '#F7F7F2',
-      ink: '#141414',
-      accent: '#D64933',
-    },
-    logline: 'Bedroom takes, voice memos, fragments that already feel like a place.',
+    id: 'wet-hot-liars',
+    title: 'wet hot liars',
+    owner: 'CLAYTON',
+    locked: false,
+    cover: 'sketch',
+    accent: '#D9D2C4',
+    tracks: [],
+  },
+  {
+    id: 'broh-um-mm-wet',
+    title: 'broh um mm wet?',
+    owner: 'CLAYTON',
+    locked: true,
+    cover: 'window',
+    accent: '#1C6B55',
     tracks: [
       {
         id: 'stratford-74',
         title: 'Stratford Ave 74',
+        added: 'Apr 18, 2026',
         kind: 'voice memo',
-        version: 'take 74',
-        duration: 'local m4a',
-        bpm: 'free',
-        key: 'open',
-        note: 'Main sketch for the opening world. Keep the loose pocket.',
         source: require('./assets/audio/stratford-ave-74.m4a'),
       },
       {
         id: 'stratford-76',
         title: 'Stratford Ave 76',
+        added: 'Apr 18, 2026',
         kind: 'boardtape',
-        version: 'take 76',
-        duration: 'local m4a',
-        bpm: 'free',
-        key: 'open',
-        note: 'Companion pass. Listen for the second-half lift.',
         source: require('./assets/audio/stratford-ave-76.m4a'),
       },
     ],
   },
   {
-    id: 'clayton-core',
-    title: 'CLAYTON',
-    format: 'Artist OS',
-    phase: 'foundation',
-    updated: 'Today',
-    palette: {
-      paper: '#101010',
-      ink: '#FAFAFA',
-      accent: '#7BD88F',
-    },
-    logline: 'The living shelf for music, visuals, references, show ideas, and finished worlds.',
+    id: 'shitty-ep',
+    title: 'SHITTY EP',
+    owner: 'CLAYTON',
+    locked: false,
+    cover: 'cassette',
+    accent: '#E7E0CE',
     tracks: [
       {
-        id: 'clayton-placeholder',
-        title: 'New idea slot',
-        kind: 'capture',
-        version: 'empty',
-        duration: 'pending',
-        bpm: 'set later',
-        key: 'set later',
-        note: 'Drop the next demo here once Supabase storage is linked.',
-        source: null,
+        id: 'doormat',
+        title: 'doormat',
+        added: 'Sep 22, 2025',
+        kind: 'demo',
+        source: require('./assets/audio/stratford-ave-74.m4a'),
+      },
+      {
+        id: 'cards',
+        title: 'cards',
+        added: 'Sep 26, 2025',
+        kind: 'demo',
+        source: require('./assets/audio/stratford-ave-76.m4a'),
+      },
+      {
+        id: 'sitcom',
+        title: 'sitcom',
+        added: 'Sep 22, 2025',
+        kind: 'boardtape',
+        source: require('./assets/audio/stratford-ave-74.m4a'),
+      },
+      {
+        id: 'nice-guy',
+        title: 'nice guy',
+        added: 'Sep 29, 2025',
+        kind: 'rough',
+        source: require('./assets/audio/stratford-ave-76.m4a'),
+      },
+      {
+        id: 'life-is-strange',
+        title: 'life is strange',
+        added: 'Oct 1, 2025',
+        kind: 'demo',
+        source: require('./assets/audio/stratford-ave-74.m4a'),
+      },
+      {
+        id: 'open-mouth',
+        title: 'open mouth',
+        added: 'Oct 2, 2025',
+        kind: 'rough',
+        source: require('./assets/audio/stratford-ave-76.m4a'),
       },
     ],
   },
+  {
+    id: 'jadyn',
+    title: 'Jadyn',
+    owner: 'CLAYTON',
+    locked: true,
+    cover: 'blank',
+    accent: '#E7A0D7',
+    tracks: [],
+  },
+  {
+    id: 'album-choices',
+    title: 'Album choices',
+    owner: 'CLAYTON',
+    locked: false,
+    cover: 'window',
+    accent: '#1C6B55',
+    tracks: [
+      {
+        id: 'album-choice-a',
+        title: 'Album choice A',
+        added: 'Apr 18, 2026',
+        kind: 'sequence',
+        source: require('./assets/audio/stratford-ave-74.m4a'),
+      },
+    ],
+  },
+  {
+    id: 'clayton',
+    title: 'CLAYTON',
+    owner: 'CLAYTON',
+    locked: false,
+    cover: 'tree',
+    accent: '#B5A85D',
+    tracks: [],
+  },
 ];
 
-const lanes = ['Music', 'Tape Room', 'World', 'Ops'];
+const untitledProject: Project = {
+  id: 'untitled-project',
+  title: 'untitled project',
+  owner: 'CLAYTON',
+  locked: true,
+  cover: 'blank',
+  accent: '#DCD8EA',
+  tracks: [],
+};
 
-function formatClock(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return '0:00';
+const featuredCovers: CoverKind[] = [
+  'window',
+  'tree',
+  'cassette',
+  'blank',
+  'cloud',
+  'sketch',
+  'window',
+  'cassette',
+  'blank',
+  'tree',
+  'cloud',
+  'sketch',
+  'cassette',
+  'blank',
+  'window',
+  'tree',
+  'cloud',
+  'sketch',
+  'window',
+  'blank',
+  'tree',
+  'cassette',
+  'cloud',
+  'sketch',
+];
+
+function formatDuration(project: Project) {
+  if (project.tracks.length === 0) {
+    return '0 sec';
   }
 
-  const minutes = Math.floor(seconds / 60);
-  const remaining = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, '0');
+  if (project.id === 'shitty-ep') {
+    return '17m 56s';
+  }
 
-  return `${minutes}:${remaining}`;
+  return `${project.tracks.length * 2 + 1}m ${project.tracks.length * 7}s`;
+}
+
+function CoverArt({ kind, size = 'small' }: { kind: CoverKind; size?: 'small' | 'large' | 'mini' }) {
+  return (
+    <View
+      style={[
+        styles.cover,
+        size === 'large' && styles.coverLarge,
+        size === 'mini' && styles.coverMini,
+      ]}
+    >
+      {kind === 'sketch' && (
+        <View style={styles.sketchCover}>
+          <View style={styles.sketchHead} />
+          <View style={styles.sketchBody} />
+          <View style={styles.sketchArmLeft} />
+          <View style={styles.sketchArmRight} />
+          <View style={styles.sketchLegLeft} />
+          <View style={styles.sketchLegRight} />
+        </View>
+      )}
+
+      {kind === 'window' && (
+        <View style={styles.windowCover}>
+          <View style={styles.windowGlow} />
+          <View style={styles.windowPane} />
+          <View style={styles.windowDark} />
+        </View>
+      )}
+
+      {kind === 'cassette' && (
+        <View style={styles.cassetteCover}>
+          {Array.from({ length: 28 }).map((_, index) => (
+            <Text key={index} style={styles.doodleText}>
+              {index % 4 === 0 ? 'RADIO' : index % 3 === 0 ? 'GONE' : index % 2 === 0 ? 'SO' : 'YEAH'}
+            </Text>
+          ))}
+          <View style={styles.cassette}>
+            <Text style={styles.cassetteLabel}>SHITTY SONGS</Text>
+            <View style={styles.cassetteTape}>
+              <View style={styles.reel} />
+              <View style={styles.reel} />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {kind === 'blank' && <View style={styles.blankCover} />}
+
+      {kind === 'tree' && (
+        <View style={styles.treeCover}>
+          <View style={styles.treeHole} />
+          <View style={styles.treeSmallMark} />
+        </View>
+      )}
+
+      {kind === 'cloud' && (
+        <View style={styles.cloudCover}>
+          <View style={styles.cloudLine} />
+          <View style={[styles.cloudLine, styles.cloudLineShort]} />
+          <View style={styles.cloudDot} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function IconButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={styles.iconButton}>
+      <Text style={styles.iconButtonText}>{label}</Text>
+    </Pressable>
+  );
 }
 
 export default function App() {
-  const [activeLane, setActiveLane] = useState(lanes[0]);
-  const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
-  const [activeTrackId, setActiveTrackId] = useState(projects[0].tracks[0].id);
+  const [screen, setScreen] = useState<Screen>('library');
+  const [sheet, setSheet] = useState<Sheet>('none');
+  const [activeProjectId, setActiveProjectId] = useState(baseProjects[2].id);
+  const [activeTrackId, setActiveTrackId] = useState<string | null>(baseProjects[2].tracks[0]?.id ?? null);
+  const [coverChoice, setCoverChoice] = useState<CoverKind>('blank');
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const status = useAudioPlayerStatus(player);
 
@@ -132,41 +295,31 @@ export default function App() {
     }).catch(() => undefined);
   }, []);
 
+  const projects = useMemo(() => [...baseProjects, untitledProject], []);
   const activeProject = useMemo(
-    () => projects.find((project) => project.id === activeProjectId) ?? projects[0],
-    [activeProjectId],
+    () => projects.find((project) => project.id === activeProjectId) ?? baseProjects[2],
+    [activeProjectId, projects],
   );
-
   const activeTrack = useMemo(
-    () => activeProject.tracks.find((track) => track.id === activeTrackId) ?? activeProject.tracks[0],
+    () => activeProject.tracks.find((track) => track.id === activeTrackId) ?? activeProject.tracks[0] ?? null,
     [activeProject, activeTrackId],
   );
+  const activeCover = activeProject.id === 'untitled-project' ? coverChoice : activeProject.cover;
 
-  const progress = status.duration > 0 ? Math.min(status.currentTime / status.duration, 1) : 0;
-  const canPlay = Boolean(activeTrack.source);
-
-  function selectProject(project: Project) {
+  function openProject(project: Project) {
     setActiveProjectId(project.id);
-    setActiveTrackId(project.tracks[0].id);
-    player.pause();
-
-    if (project.tracks[0].source) {
-      player.replace(project.tracks[0].source);
-    }
+    setActiveTrackId(project.tracks[0]?.id ?? null);
+    setScreen('project');
   }
 
-  function selectTrack(track: Track) {
+  function playTrack(track: Track) {
     setActiveTrackId(track.id);
-
-    if (track.source) {
-      player.replace(track.source);
-    } else {
-      player.pause();
-    }
+    player.replace(track.source);
+    player.play();
   }
 
-  function togglePlayback() {
-    if (!canPlay) {
+  function toggleCurrentTrack() {
+    if (!activeTrack) {
       return;
     }
 
@@ -182,173 +335,202 @@ export default function App() {
     player.play();
   }
 
+  function createUntitledProject() {
+    setActiveProjectId(untitledProject.id);
+    setActiveTrackId(null);
+    setCoverChoice('blank');
+    setScreen('project');
+    setSheet('none');
+  }
+
   return (
     <SafeAreaView style={styles.shell}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <View>
-            <Text style={styles.kicker}>CLAYTON</Text>
-            <Text style={styles.title}>Tape room</Text>
+
+      {screen === 'library' ? (
+        <ScrollView contentContainerStyle={styles.libraryContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.libraryHeader}>
+            <Text style={styles.brand}>[clayton]</Text>
+            <View style={styles.headerActions}>
+              <IconButton label="bell" onPress={() => undefined} />
+              <IconButton label="search" onPress={() => undefined} />
+              <IconButton label="me" onPress={() => undefined} />
+            </View>
           </View>
-          <View style={styles.syncPill}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncText}>local</Text>
-          </View>
-        </View>
 
-        <View style={styles.laneRow}>
-          {lanes.map((lane) => {
-            const isActive = lane === activeLane;
-
-            return (
-              <Pressable
-                key={lane}
-                onPress={() => setActiveLane(lane)}
-                style={[styles.laneButton, isActive && styles.laneButtonActive]}
-              >
-                <Text style={[styles.laneText, isActive && styles.laneTextActive]}>{lane}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.projectRail}
-        >
-          {projects.map((project) => {
-            const isActive = project.id === activeProject.id;
-
-            return (
-              <Pressable
-                key={project.id}
-                onPress={() => selectProject(project)}
-                style={[
-                  styles.projectCard,
-                  isActive && styles.projectCardActive,
-                  { backgroundColor: project.palette.paper },
-                ]}
-              >
-                <Text style={[styles.projectFormat, { color: project.palette.accent }]}>
-                  {project.format}
-                </Text>
-                <Text style={[styles.projectTitle, { color: project.palette.ink }]} numberOfLines={2}>
+          <View style={styles.grid}>
+            {baseProjects.map((project) => (
+              <Pressable key={project.id} onPress={() => openProject(project)} style={styles.gridItem}>
+                <View>
+                  <CoverArt kind={project.cover} />
+                  <Pressable
+                    onPress={() => project.tracks[0] && playTrack(project.tracks[0])}
+                    style={styles.cardPlay}
+                  >
+                    <Text style={styles.cardPlayText}>{status.playing && activeProjectId === project.id ? '||' : '>'}</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.cardTitle} numberOfLines={1}>
                   {project.title}
                 </Text>
-                <Text style={[styles.projectMeta, { color: project.palette.ink }]}>
-                  {project.phase} / {project.updated}
-                </Text>
-                <View style={[styles.artMark, { borderColor: project.palette.accent }]}>
-                  <Text style={[styles.artMarkText, { color: project.palette.ink }]}>
-                    {project.title.slice(0, 2).toUpperCase()}
+                <View style={styles.cardMetaRow}>
+                  <Text style={styles.cardMeta} numberOfLines={1}>
+                    {project.locked ? 'locked ' : ''}
+                    {project.owner}
                   </Text>
+                  <Text style={styles.ellipsis}>...</Text>
                 </View>
               </Pressable>
-            );
-          })}
+            ))}
+          </View>
         </ScrollView>
-
-        <View style={styles.nowPlaying}>
-          <View style={styles.nowPlayingHeader}>
-            <View style={styles.coverStack}>
-              <View style={[styles.coverBack, { backgroundColor: activeProject.palette.accent }]} />
-              <View style={[styles.coverFront, { backgroundColor: activeProject.palette.paper }]}>
-                <Text style={[styles.coverText, { color: activeProject.palette.ink }]}>
-                  {activeProject.title.slice(0, 2).toUpperCase()}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.nowText}>
-              <Text style={styles.nowLabel}>{activeLane}</Text>
-              <Text style={styles.nowTitle} numberOfLines={2}>
-                {activeTrack.title}
-              </Text>
-              <Text style={styles.nowSub}>
-                {activeProject.title} / {activeTrack.version}
-              </Text>
+      ) : (
+        <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.detailTopBar}>
+            <IconButton label="<" onPress={() => setScreen('library')} />
+            <View style={styles.detailActions}>
+              <IconButton label="link" onPress={() => undefined} />
+              <IconButton label="search" onPress={() => undefined} />
+              <IconButton label="..." onPress={() => setSheet('cover')} />
             </View>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-          </View>
-          <View style={styles.timeRow}>
-            <Text style={styles.timeText}>{formatClock(status.currentTime)}</Text>
-            <Text style={styles.timeText}>
-              {status.duration > 0 ? formatClock(status.duration) : activeTrack.duration}
-            </Text>
-          </View>
+          <Pressable onPress={() => setSheet('cover')} style={styles.detailCoverPress}>
+            <CoverArt kind={activeCover} size="large" />
+          </Pressable>
 
-          <View style={styles.playerControls}>
-            <Pressable
-              onPress={() => canPlay && player.seekTo(Math.max(status.currentTime - 10, 0))}
-              style={[styles.smallControl, !canPlay && styles.controlDisabled]}
-            >
-              <Text style={styles.smallControlText}>-10</Text>
-            </Pressable>
-            <Pressable
-              onPress={togglePlayback}
-              style={[styles.playButton, !canPlay && styles.controlDisabled]}
-            >
-              <Text style={styles.playText}>{status.playing ? 'Pause' : 'Play'}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => canPlay && player.seekTo(status.currentTime + 10)}
-              style={[styles.smallControl, !canPlay && styles.controlDisabled]}
-            >
-              <Text style={styles.smallControlText}>+10</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Project sequence</Text>
-          <Text style={styles.sectionMeta}>{activeProject.tracks.length} slots</Text>
-        </View>
-
-        <View style={styles.trackList}>
-          {activeProject.tracks.map((track, index) => {
-            const isActive = track.id === activeTrack.id;
-
-            return (
-              <Pressable
-                key={track.id}
-                onPress={() => selectTrack(track)}
-                style={[styles.trackRow, isActive && styles.trackRowActive]}
-              >
-                <Text style={[styles.trackNumber, isActive && styles.trackNumberActive]}>
-                  {(index + 1).toString().padStart(2, '0')}
-                </Text>
-                <View style={styles.trackCopy}>
-                  <Text style={styles.trackTitle}>{track.title}</Text>
-                  <Text style={styles.trackMeta}>
-                    {track.kind} / {track.bpm} / {track.key}
-                  </Text>
-                  <Text style={styles.trackNote}>{track.note}</Text>
-                </View>
+          <View style={styles.detailTitleRow}>
+            <View style={styles.detailTitleCopy}>
+              <Text style={[styles.detailTitle, activeProject.tracks.length === 0 && styles.emptyTitle]}>
+                {activeProject.title}
+              </Text>
+              <Text style={styles.detailMeta}>
+                {activeProject.locked ? 'locked ' : ''}
+                {activeProject.owner} · {activeProject.tracks.length} tracks · {formatDuration(activeProject)}
+              </Text>
+            </View>
+            {activeProject.tracks.length > 0 && (
+              <Pressable onPress={toggleCurrentTrack} style={styles.detailPlay}>
+                <Text style={styles.detailPlayText}>{status.playing ? '||' : '>'}</Text>
               </Pressable>
-            );
-          })}
-        </View>
+            )}
+          </View>
 
-        <View style={styles.pipeline}>
-          <Text style={styles.pipelineTitle}>Build queue</Text>
-          <View style={styles.pipelineRow}>
-            <Text style={styles.pipelineStep}>01</Text>
-            <Text style={styles.pipelineCopy}>Local phone playback is active through Expo.</Text>
+          {activeProject.tracks.length > 0 ? (
+            <>
+              <Pressable onPress={() => setSheet('import')} style={styles.addTracksWide}>
+                <Text style={styles.addTracksText}>+ Add tracks</Text>
+              </Pressable>
+              <View style={styles.trackList}>
+                {activeProject.tracks.map((track, index) => (
+                  <Pressable key={track.id} onPress={() => playTrack(track)} style={styles.trackRow}>
+                    <Text style={styles.trackNumber}>{index + 1}</Text>
+                    <View style={styles.trackCopy}>
+                      <Text style={styles.trackTitle}>{track.title}</Text>
+                      <Text style={styles.trackDate}>{track.added}</Text>
+                    </View>
+                    <Text style={styles.trackMenu}>...</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : (
+            <View style={styles.emptyActions}>
+              <Pressable onPress={() => setSheet('import')} style={styles.emptyActionButton}>
+                <Text style={styles.emptyActionText}>Convert</Text>
+              </Pressable>
+              <Pressable onPress={() => setSheet('import')} style={styles.emptyActionButton}>
+                <Text style={styles.emptyActionText}>Import</Text>
+              </Pressable>
+              <Pressable onPress={() => setSheet('import')} style={styles.emptyActionButton}>
+                <Text style={styles.recordDot}>●</Text>
+                <Text style={styles.emptyActionText}>Record</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {screen === 'library' && (
+        <Pressable onPress={() => setSheet('add')} style={styles.floatingAdd}>
+          <Text style={styles.floatingAddText}>+ Add</Text>
+        </Pressable>
+      )}
+
+      <Modal visible={sheet === 'add'} transparent animationType="fade" onRequestClose={() => setSheet('none')}>
+        <Pressable style={styles.modalScrim} onPress={() => setSheet('none')}>
+          <View style={styles.addSheet}>
+            <Pressable onPress={() => setSheet('import')} style={styles.sheetRow}>
+              <Text style={styles.sheetIcon}>||</Text>
+              <Text style={styles.sheetText}>Import</Text>
+            </Pressable>
+            <Pressable onPress={() => setSheet('import')} style={styles.sheetRow}>
+              <Text style={styles.sheetIcon}>[]</Text>
+              <Text style={styles.sheetText}>Convert</Text>
+            </Pressable>
+            <Pressable onPress={() => setSheet('import')} style={styles.sheetRow}>
+              <Text style={styles.recordDot}>●</Text>
+              <Text style={styles.sheetText}>Record</Text>
+            </Pressable>
+            <View style={styles.sheetDivider} />
+            <Pressable onPress={createUntitledProject} style={styles.sheetRow}>
+              <Text style={styles.sheetIcon}>+</Text>
+              <Text style={styles.sheetText}>Project</Text>
+            </Pressable>
+            <Pressable onPress={() => setSheet('none')} style={styles.sheetRow}>
+              <Text style={styles.sheetIcon}>=</Text>
+              <Text style={styles.sheetText}>Folder</Text>
+            </Pressable>
           </View>
-          <View style={styles.pipelineRow}>
-            <Text style={styles.pipelineStep}>02</Text>
-            <Text style={styles.pipelineCopy}>Supabase schema is ready for projects, tracks, and assets.</Text>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={sheet === 'cover'} animationType="slide" onRequestClose={() => setSheet('none')}>
+        <SafeAreaView style={styles.coverEditor}>
+          <View style={styles.coverEditorTop}>
+            <Text style={styles.coverEditorTitle}>Cover</Text>
+            <Pressable onPress={() => setSheet('none')} style={styles.doneButton}>
+              <Text style={styles.doneText}>Done</Text>
+            </Pressable>
           </View>
-          <View style={styles.pipelineRow}>
-            <Text style={styles.pipelineStep}>03</Text>
-            <Text style={styles.pipelineCopy}>Next pass: upload demos from the phone and sync release shelves.</Text>
+          <View style={styles.coverEditorBody}>
+            <CoverArt kind={activeCover} size="large" />
+            <Text style={styles.coverEditorMeta}>Added Apr 18   Export</Text>
+            <Pressable onPress={() => setSheet('import')} style={styles.coverSwatch}>
+              <CoverArt kind={activeCover} size="mini" />
+            </Pressable>
+            <Pressable onPress={() => setSheet('import')} style={styles.addPhotoButton}>
+              <Text style={styles.addPhotoText}>+ Add Photo</Text>
+            </Pressable>
           </View>
-        </View>
-      </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={sheet === 'import'} animationType="slide" onRequestClose={() => setSheet('none')}>
+        <SafeAreaView style={styles.featuredModal}>
+          <View style={styles.featuredTop}>
+            <View style={styles.colorRing} />
+            <Text style={styles.featuredTitle}>Featured</Text>
+            <Pressable onPress={() => setSheet('none')} style={styles.closeButton}>
+              <Text style={styles.closeText}>x</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.featuredGrid}>
+            {featuredCovers.map((cover, index) => (
+              <Pressable
+                key={`${cover}-${index}`}
+                onPress={() => {
+                  setCoverChoice(cover);
+                  setSheet(screen === 'project' ? 'cover' : 'none');
+                }}
+                style={styles.featuredTile}
+              >
+                <CoverArt kind={cover} size="mini" />
+              </Pressable>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -356,360 +538,597 @@ export default function App() {
 const styles = StyleSheet.create({
   shell: {
     flex: 1,
-    backgroundColor: '#080808',
+    backgroundColor: '#111111',
   },
-  scrollContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 40,
+  libraryContent: {
+    paddingBottom: 110,
+    paddingHorizontal: 22,
+    paddingTop: 24,
   },
-  topBar: {
+  libraryHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingBottom: 18,
-    paddingTop: 14,
+    marginBottom: 28,
   },
-  kicker: {
-    color: '#F2F2EA',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 34,
+  brand: {
+    color: '#F2F2F2',
+    fontSize: 21,
     fontWeight: '900',
     letterSpacing: 0,
-    lineHeight: 38,
   },
-  syncPill: {
-    alignItems: 'center',
-    borderColor: '#2F2F2F',
-    borderRadius: 8,
-    borderWidth: 1,
+  headerActions: {
     flexDirection: 'row',
+  },
+  iconButton: {
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderRadius: 8,
+    height: 40,
+    justifyContent: 'center',
+    marginLeft: 9,
+    minWidth: 40,
     paddingHorizontal: 10,
-    paddingVertical: 8,
   },
-  syncDot: {
-    backgroundColor: '#7BD88F',
-    borderRadius: 4,
-    height: 8,
-    marginRight: 7,
-    width: 8,
-  },
-  syncText: {
-    color: '#F2F2EA',
+  iconButtonText: {
+    color: '#F2F2F2',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '900',
     letterSpacing: 0,
-    textTransform: 'uppercase',
   },
-  laneRow: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 18,
-  },
-  laneButton: {
-    borderColor: '#292929',
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-    marginRight: 8,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-  },
-  laneButtonActive: {
-    backgroundColor: '#F2F2EA',
-    borderColor: '#F2F2EA',
-  },
-  laneText: {
-    color: '#A9A9A0',
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0,
-  },
-  laneTextActive: {
-    color: '#080808',
-  },
-  projectRail: {
-    paddingBottom: 20,
-  },
-  projectCard: {
-    borderRadius: 8,
-    height: 190,
     justifyContent: 'space-between',
-    marginRight: 12,
-    padding: 16,
-    width: 158,
   },
-  projectCardActive: {
-    borderColor: '#FFFFFF',
-    borderWidth: 2,
+  gridItem: {
+    marginBottom: 34,
+    width: '47%',
   },
-  projectFormat: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-  },
-  projectTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 0,
-    lineHeight: 26,
-  },
-  projectMeta: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0,
-    opacity: 0.7,
-    textTransform: 'uppercase',
-  },
-  artMark: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+  cover: {
+    aspectRatio: 1,
+    backgroundColor: '#202020',
     borderRadius: 8,
-    borderWidth: 2,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  artMarkText: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0,
-  },
-  nowPlaying: {
-    backgroundColor: '#151515',
-    borderColor: '#2D2D2D',
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 16,
-  },
-  nowPlayingHeader: {
-    flexDirection: 'row',
-    marginBottom: 18,
-  },
-  coverStack: {
-    height: 88,
-    marginRight: 14,
-    width: 88,
-  },
-  coverBack: {
-    borderRadius: 8,
-    height: 76,
-    left: 8,
-    position: 'absolute',
-    top: 0,
-    width: 76,
-  },
-  coverFront: {
-    alignItems: 'center',
-    borderRadius: 8,
-    height: 76,
-    justifyContent: 'center',
-    left: 0,
-    position: 'absolute',
-    top: 10,
-    width: 76,
-  },
-  coverText: {
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 0,
-  },
-  nowText: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  nowLabel: {
-    color: '#D64933',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  nowTitle: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 0,
-    lineHeight: 28,
-  },
-  nowSub: {
-    color: '#A9A9A0',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0,
-    marginTop: 4,
-  },
-  progressTrack: {
-    backgroundColor: '#2B2B2B',
-    borderRadius: 8,
-    height: 8,
     overflow: 'hidden',
+    width: '100%',
   },
-  progressFill: {
-    backgroundColor: '#7BD88F',
-    height: 8,
+  coverLarge: {
+    alignSelf: 'center',
+    width: '88%',
   },
-  timeRow: {
+  coverMini: {
+    height: 70,
+    width: 70,
+  },
+  cardPlay: {
+    alignItems: 'center',
+    backgroundColor: '#4A4A4A',
+    borderRadius: 8,
+    bottom: 0,
+    height: 40,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
+    width: 40,
+  },
+  cardPlayText: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  cardTitle: {
+    color: '#F5F5F5',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0,
+    marginTop: 10,
+  },
+  cardMetaRow: {
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
   },
-  timeText: {
-    color: '#A9A9A0',
-    fontSize: 12,
+  cardMeta: {
+    color: '#8E8E8E',
+    flex: 1,
+    fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0,
   },
-  playerControls: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 18,
-  },
-  smallControl: {
-    alignItems: 'center',
-    borderColor: '#383838',
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: 'center',
-    width: 58,
-  },
-  smallControlText: {
-    color: '#F2F2EA',
-    fontSize: 13,
+  ellipsis: {
+    color: '#CFCFCF',
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0,
   },
-  playButton: {
+  detailContent: {
+    paddingBottom: 54,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+  },
+  detailTopBar: {
     alignItems: 'center',
-    backgroundColor: '#F2F2EA',
-    borderRadius: 8,
-    height: 50,
-    justifyContent: 'center',
-    marginHorizontal: 12,
-    width: 128,
-  },
-  playText: {
-    color: '#080808',
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-  },
-  controlDisabled: {
-    opacity: 0.35,
-  },
-  sectionHeader: {
-    alignItems: 'flex-end',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    marginTop: 28,
+    marginBottom: 27,
   },
-  sectionTitle: {
+  detailActions: {
+    flexDirection: 'row',
+  },
+  detailCoverPress: {
+    marginBottom: 28,
+  },
+  detailTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 17,
+  },
+  detailTitleCopy: {
+    flex: 1,
+    paddingRight: 14,
+  },
+  detailTitle: {
     color: '#FFFFFF',
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: 0,
+    lineHeight: 32,
+  },
+  emptyTitle: {
+    color: '#7E7E7E',
+  },
+  detailMeta: {
+    color: '#8B8B8B',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0,
+    marginTop: 6,
+  },
+  detailPlay: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    height: 45,
+    justifyContent: 'center',
+    width: 45,
+  },
+  detailPlayText: {
+    color: '#111111',
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 0,
   },
-  sectionMeta: {
-    color: '#A9A9A0',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-  },
-  trackList: {
-    marginBottom: 22,
-  },
-  trackRow: {
-    backgroundColor: '#111111',
-    borderColor: '#252525',
+  addTracksWide: {
+    alignItems: 'center',
+    backgroundColor: '#202020',
     borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginBottom: 10,
-    padding: 13,
+    height: 41,
+    justifyContent: 'center',
+    marginBottom: 18,
   },
-  trackRowActive: {
-    borderColor: '#F2F2EA',
-  },
-  trackNumber: {
-    color: '#5F5F5A',
+  addTracksText: {
+    color: '#F2F2F2',
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0,
-    marginRight: 12,
-    marginTop: 2,
-    width: 28,
   },
-  trackNumberActive: {
-    color: '#7BD88F',
+  trackList: {
+    paddingTop: 2,
+  },
+  trackRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingVertical: 13,
+  },
+  trackNumber: {
+    color: '#8A8A8A',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0,
+    width: 34,
   },
   trackCopy: {
     flex: 1,
   },
   trackTitle: {
-    color: '#FFFFFF',
+    color: '#F3F3F3',
     fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0,
-    marginBottom: 4,
   },
-  trackMeta: {
-    color: '#A9A9A0',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  trackNote: {
-    color: '#D7D7CF',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0,
-    lineHeight: 18,
-  },
-  pipeline: {
-    backgroundColor: '#F2F2EA',
-    borderRadius: 8,
-    padding: 16,
-  },
-  pipelineTitle: {
-    color: '#080808',
-    fontSize: 19,
-    fontWeight: '900',
-    letterSpacing: 0,
-    marginBottom: 12,
-  },
-  pipelineRow: {
-    borderTopColor: '#D5D5CC',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    paddingVertical: 11,
-  },
-  pipelineStep: {
-    color: '#D64933',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0,
-    marginRight: 12,
-    width: 28,
-  },
-  pipelineCopy: {
-    color: '#080808',
-    flex: 1,
+  trackDate: {
+    color: '#838383',
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0,
-    lineHeight: 19,
+    marginTop: 3,
+  },
+  trackMenu: {
+    color: '#E8E8E8',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  emptyActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  emptyActionButton: {
+    alignItems: 'center',
+    backgroundColor: '#202020',
+    borderRadius: 8,
+    flexDirection: 'row',
+    height: 41,
+    justifyContent: 'center',
+    width: '31%',
+  },
+  emptyActionText: {
+    color: '#E8E8E8',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  recordDot: {
+    color: '#EF4056',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0,
+    marginRight: 7,
+  },
+  floatingAdd: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: '#2B2B2B',
+    borderRadius: 8,
+    bottom: 31,
+    height: 52,
+    justifyContent: 'center',
+    position: 'absolute',
+    width: 192,
+  },
+  floatingAddText: {
+    color: '#F2F2F2',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  modalScrim: {
+    backgroundColor: 'rgba(0,0,0,0.14)',
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 78,
+  },
+  addSheet: {
+    alignSelf: 'center',
+    backgroundColor: '#303030',
+    borderRadius: 8,
+    paddingVertical: 12,
+    width: 224,
+  },
+  sheetRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 39,
+    paddingHorizontal: 20,
+  },
+  sheetIcon: {
+    color: '#D9D9D9',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0,
+    marginRight: 16,
+    width: 18,
+  },
+  sheetText: {
+    color: '#E9E9E9',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  sheetDivider: {
+    backgroundColor: '#3B3B3B',
+    height: 1,
+    marginVertical: 8,
+  },
+  coverEditor: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
+  coverEditorTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 22,
+    paddingTop: 22,
+  },
+  coverEditorTitle: {
+    color: '#F2F2F2',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  doneButton: {
+    alignItems: 'center',
+    backgroundColor: '#222222',
+    borderRadius: 8,
+    height: 40,
+    justifyContent: 'center',
+    width: 58,
+  },
+  doneText: {
+    color: '#F2F2F2',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  coverEditorBody: {
+    alignItems: 'center',
+    paddingTop: 86,
+  },
+  coverEditorMeta: {
+    color: '#8A8A8A',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginTop: 22,
+  },
+  coverSwatch: {
+    borderColor: '#F2F2F2',
+    borderRadius: 8,
+    borderWidth: 3,
+    marginTop: 84,
+    padding: 3,
+  },
+  addPhotoButton: {
+    alignItems: 'center',
+    backgroundColor: '#202020',
+    borderRadius: 8,
+    height: 41,
+    justifyContent: 'center',
+    marginTop: 28,
+    width: '88%',
+  },
+  addPhotoText: {
+    color: '#F2F2F2',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  featuredModal: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
+  featuredTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 22,
+    paddingTop: 22,
+  },
+  colorRing: {
+    borderColor: '#6FAD3C',
+    borderRadius: 16,
+    borderWidth: 2,
+    height: 32,
+    width: 32,
+  },
+  featuredTitle: {
+    color: '#F2F2F2',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  closeButton: {
+    alignItems: 'center',
+    backgroundColor: '#272727',
+    borderRadius: 8,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  closeText: {
+    color: '#F2F2F2',
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  featuredGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    padding: 22,
+  },
+  featuredTile: {
+    marginBottom: 10,
+    width: '22%',
+  },
+  sketchCover: {
+    backgroundColor: '#CBC4B6',
+    flex: 1,
+  },
+  sketchHead: {
+    backgroundColor: '#050505',
+    borderRadius: 8,
+    height: '8%',
+    left: '46%',
+    position: 'absolute',
+    top: '11%',
+    width: '8%',
+  },
+  sketchBody: {
+    backgroundColor: '#050505',
+    height: '30%',
+    left: '43%',
+    position: 'absolute',
+    top: '25%',
+    transform: [{ rotate: '-9deg' }],
+    width: '16%',
+  },
+  sketchArmLeft: {
+    backgroundColor: '#050505',
+    height: '7%',
+    left: '32%',
+    position: 'absolute',
+    top: '33%',
+    transform: [{ rotate: '-29deg' }],
+    width: '20%',
+  },
+  sketchArmRight: {
+    backgroundColor: '#050505',
+    height: '7%',
+    left: '55%',
+    position: 'absolute',
+    top: '35%',
+    transform: [{ rotate: '27deg' }],
+    width: '22%',
+  },
+  sketchLegLeft: {
+    backgroundColor: '#050505',
+    height: '7%',
+    left: '41%',
+    position: 'absolute',
+    top: '58%',
+    transform: [{ rotate: '35deg' }],
+    width: '18%',
+  },
+  sketchLegRight: {
+    backgroundColor: '#050505',
+    height: '7%',
+    left: '52%',
+    position: 'absolute',
+    top: '61%',
+    transform: [{ rotate: '-24deg' }],
+    width: '18%',
+  },
+  windowCover: {
+    backgroundColor: '#0F2B22',
+    flex: 1,
+  },
+  windowGlow: {
+    backgroundColor: '#E9CFB8',
+    height: '44%',
+    position: 'absolute',
+    right: '10%',
+    top: '22%',
+    width: '26%',
+  },
+  windowPane: {
+    backgroundColor: '#111111',
+    height: '44%',
+    position: 'absolute',
+    right: '23%',
+    top: '22%',
+    width: 3,
+  },
+  windowDark: {
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    height: '100%',
+    left: 0,
+    position: 'absolute',
+    width: '52%',
+  },
+  cassetteCover: {
+    backgroundColor: '#E5DECD',
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 7,
+  },
+  doodleText: {
+    color: '#777066',
+    fontSize: 7,
+    fontWeight: '900',
+    height: 18,
+    letterSpacing: 0,
+    marginRight: 7,
+  },
+  cassette: {
+    backgroundColor: '#B65D3A',
+    borderColor: '#161616',
+    borderRadius: 3,
+    borderWidth: 2,
+    height: '32%',
+    left: '24%',
+    position: 'absolute',
+    top: '34%',
+    width: '55%',
+  },
+  cassetteLabel: {
+    backgroundColor: '#EFEBD6',
+    color: '#111111',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0,
+    marginHorizontal: 8,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  cassetteTape: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 8,
+  },
+  reel: {
+    backgroundColor: '#F4F4F4',
+    borderColor: '#111111',
+    borderRadius: 8,
+    borderWidth: 2,
+    height: 16,
+    width: 16,
+  },
+  blankCover: {
+    backgroundColor: '#DCD8EA',
+    flex: 1,
+  },
+  treeCover: {
+    backgroundColor: '#9A914C',
+    flex: 1,
+  },
+  treeHole: {
+    backgroundColor: '#4B361C',
+    borderRadius: 8,
+    height: '34%',
+    left: '42%',
+    position: 'absolute',
+    top: '28%',
+    width: '25%',
+  },
+  treeSmallMark: {
+    backgroundColor: '#64B8C8',
+    borderRadius: 7,
+    bottom: '27%',
+    height: 14,
+    left: '44%',
+    position: 'absolute',
+    width: 14,
+  },
+  cloudCover: {
+    backgroundColor: '#ECECEC',
+    flex: 1,
+  },
+  cloudLine: {
+    backgroundColor: '#232323',
+    height: 3,
+    left: '18%',
+    position: 'absolute',
+    top: '52%',
+    width: '70%',
+  },
+  cloudLineShort: {
+    top: '65%',
+    width: '42%',
+  },
+  cloudDot: {
+    backgroundColor: '#E55B3C',
+    borderRadius: 8,
+    height: 16,
+    left: '29%',
+    position: 'absolute',
+    top: '38%',
+    width: 16,
   },
 });
